@@ -40,12 +40,22 @@ class DashboardController {
               ]
             },
             {
+              title: 'Web Search',
+              items: [
+                { 
+                  label: 'Search Enabled', 
+                  value: process.env.PERPLEXITY_API_KEY ? 'Yes' : 'No (Add API key)' 
+                },
+                { label: 'Last Search', value: 'None' },
+                { label: 'Provider', value: 'Perplexity AI' }
+              ]
+            },
+            {
               title: 'Available Commands',
               items: [
-                { label: 'Text', value: 'Display text messages' },
-                { label: 'Weather', value: 'Show weather data with symbols' },
-                { label: 'Directions', value: 'Display directional arrows' },
-                { label: 'Time', value: 'Show current time' }
+                { label: 'Display', value: 'Show text, weather, directions, etc.' },
+                { label: 'Search', value: 'Search for [topic], what is [topic]' },
+                { label: 'System', value: 'Help, clear screen' }
               ]
             }
           ]
@@ -147,6 +157,89 @@ class DashboardController {
       await session.dashboard.clearContent();
     } catch (error) {
       this.logger.error('Failed to clear dashboard content', error);
+    }
+  }
+  
+  /**
+   * Update the dashboard with search results
+   * @param {Object} session - MentraOS session object
+   * @param {string} query - Search query
+   * @param {Object} results - Search results object
+   */
+  async updateSearchResults(session, query, results) {
+    try {
+      this.logger.info(`Updating dashboard with search results for: "${query}"`);
+      
+      // Get current dashboard content
+      const currentContent = await session.dashboard.getContent();
+      
+      if (currentContent && currentContent.expanded && currentContent.expanded.sections) {
+        // Find the Web Search section
+        let searchSectionFound = false;
+        
+        for (const section of currentContent.expanded.sections) {
+          if (section.title === 'Web Search') {
+            searchSectionFound = true;
+            
+            // Update the search items
+            section.items = [
+              { 
+                label: 'Search Enabled', 
+                value: process.env.PERPLEXITY_API_KEY ? 'Yes' : 'No (Add API key)'
+              },
+              { 
+                label: 'Last Search', 
+                value: query.length > 20 ? query.substring(0, 17) + '...' : query 
+              },
+              { 
+                label: 'Results', 
+                value: results.success ? `${results.results.sources?.length || 0} sources found` : 'Error' 
+              },
+              { label: 'Provider', value: 'Perplexity AI' },
+              { 
+                label: 'Timestamp', 
+                value: new Date().toLocaleTimeString() 
+              }
+            ];
+            break;
+          }
+        }
+        
+        // If Web Search section not found, add it
+        if (!searchSectionFound) {
+          currentContent.expanded.sections.push({
+            title: 'Web Search',
+            items: [
+              { 
+                label: 'Search Enabled', 
+                value: process.env.PERPLEXITY_API_KEY ? 'Yes' : 'No (Add API key)'
+              },
+              { 
+                label: 'Last Search', 
+                value: query.length > 20 ? query.substring(0, 17) + '...' : query 
+              },
+              { 
+                label: 'Results', 
+                value: results.success ? `${results.results.sources?.length || 0} sources found` : 'Error' 
+              },
+              { label: 'Provider', value: 'Perplexity AI' },
+              { 
+                label: 'Timestamp', 
+                value: new Date().toLocaleTimeString() 
+              }
+            ]
+          });
+        }
+        
+        // Update the dashboard content
+        await session.dashboard.updateContent({
+          expanded: currentContent.expanded
+        });
+        
+        this.logger.info('Dashboard search content updated');
+      }
+    } catch (error) {
+      this.logger.error(`Failed to update dashboard search content: ${error.message}`);
     }
   }
 }

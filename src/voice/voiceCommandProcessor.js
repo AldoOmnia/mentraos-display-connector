@@ -1,4 +1,5 @@
 import Logger from '../utils/logger.js';
+import WebSearchService from '../search/webSearchService.js';
 
 /**
  * Handles voice command processing for the MentraOS app
@@ -8,6 +9,7 @@ class VoiceCommandProcessor {
     this.displayController = displayController;
     this.dashboardController = dashboardController;
     this.logger = new Logger('VoiceCommandProcessor');
+    this.webSearchService = new WebSearchService();
     
     // Define command patterns
     this.commandPatterns = [
@@ -55,6 +57,17 @@ class VoiceCommandProcessor {
         pattern: /(?:help|show help|commands|show commands)/i,
         handler: this.handleHelp.bind(this),
         description: 'Show help'
+      },
+      // Add web search commands
+      {
+        pattern: /(?:search|lookup|find|google|web search)(?: for)? (.+)/i,
+        handler: this.handleWebSearch.bind(this),
+        description: 'Search the web'
+      },
+      {
+        pattern: /(?:what is|who is|tell me about|info on) (.+)/i,
+        handler: this.handleWebSearch.bind(this),
+        description: 'Get information about a topic'
       }
     ];
   }
@@ -177,7 +190,7 @@ class VoiceCommandProcessor {
   /**
    * Handle forecast display with special symbols
    * @param {Array} match - Regex match groups
-   * @param {Object} session - MentraOS session object
+   * @param {Object} session - MentraOS session
    */
   async handleForecastCommand(match, session) {
     // Example of using special symbols (arrows, degree) to show a weather forecast
@@ -281,6 +294,93 @@ class VoiceCommandProcessor {
     );
     
     return { success: true };
+  }
+  
+  /**
+   * Handle web search command
+   * @param {Array} match - Regex match groups
+   * @param {Object} session - MentraOS session
+   */
+  async handleWebSearch(match, session) {
+    const query = match[1];
+    
+    if (!query || query.trim().length === 0) {
+      await session.layouts.showTextWall('Please specify what to search for.', { durationMs: 3000 });
+      return { success: false, error: 'Empty query' };
+    }
+    
+    try {
+      // Show searching status
+      await this.displayController.sendCommand(`clear`);
+      await this.displayController.sendCommand(`text:Searching for:`);
+      await this.displayController.sendCommand(`textxy:0,15,${query.substring(0, 20)}...`);
+      
+      // Update dashboard
+      await this.dashboardController.updateDisplayContent(session, `Searching: ${query}`);
+      
+      // Show searching message in glasses
+      await session.layouts.showTextWall(`Searching for: ${query}`, { durationMs: 2000 });
+      
+      // Perform the search
+      const searchResults = await this.webSearchService.searchWeb(query);
+      
+      // Update dashboard with search results
+      await this.dashboardController.updateSearchResults(session, query, searchResults);
+      
+      if (searchResults.success) {
+        // Format results for OLED display
+        const displayText = this.webSearchService.formatResultsForDisplay(searchResults);
+        
+        // Display on OLED
+        await this.displayController.sendCommand('clear');
+        await this.displayController.sendCommand(`multiline:${displayText.replace(/\n/g, '\\n')}`);
+        
+        // Show results in glasses
+        if (searchResults.results.answer) {
+          await session.layouts.showTextWall(searchResults.results.answer, { durationMs: 8000 });
+        } else {
+          await session.layouts.showTextWall(`Search complete for: ${query}`, { durationMs: 3000 });
+        }
+        
+        // Show sources in a reference card if available
+        if (searchResults.results.sources && searchResults.results.sources.length > 0) {
+          const sourcesText = searchResults.results.sources
+            .map((source, index) => `${index + 1}. ${source.title}\n${source.url}`)
+            .join('\n\n');
+            
+          await session.layouts.showReferenceCard('Search Sources', sourcesText, { durationMs: 10000 });
+        }
+        
+        return {
+          success: true,
+          query,
+          resultsCount: searchResults.results.sources?.length || 0
+        };
+      } else {
+        // Handle search error
+        await this.displayController.sendCommand('clear');
+        await this.displayController.sendCommand(`multiline:Search Error:\\n${searchResults.error}`);
+        
+        await session.layouts.showTextWall(`Search error: ${searchResults.error}`, { durationMs: 3000 });
+        
+        return {
+          success: false,
+          error: searchResults.error
+        };
+      }
+    } catch (error) {
+      this.logger.error(`Error handling web search: ${error.message}`);
+      
+      await this.displayController.sendCommand('clear');
+      await this.displayController.sendCommand(`multiline:Error:\\n${error.message}`);
+      
+      await session.layouts.showTextWall(`Error searching: ${error.message}`, { durationMs: 3000 });
+      
+      return {
+        success: false,
+        error: error.message
+      };
+    }
   }
 }
 

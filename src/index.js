@@ -6,13 +6,14 @@ import { MentraOSApp, LayoutType, ViewType } from '@mentra/sdk';
 import SerialDisplayController from './display/serialDisplayController.js';
 import DashboardController from './dashboard/dashboardController.js';
 import VoiceCommandProcessor from './voice/voiceCommandProcessor.js';
+import WebSearchService from './search/webSearchService.js';
 import Logger from './utils/logger.js';
 
 const logger = new Logger('main');
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Initialize serial display controller
+// Initialize services
 const displayController = new SerialDisplayController({
   port: process.env.SERIAL_PORT,
   baudRate: parseInt(process.env.SERIAL_BAUD_RATE) || 9600,
@@ -20,10 +21,8 @@ const displayController = new SerialDisplayController({
   height: parseInt(process.env.DISPLAY_HEIGHT) || 56
 });
 
-// Initialize dashboard controller
 const dashboardController = new DashboardController();
-
-// Initialize voice command processor
+const webSearchService = new WebSearchService();
 const voiceCommandProcessor = new VoiceCommandProcessor(displayController, dashboardController);
 
 // Create the MentraOS app
@@ -54,12 +53,45 @@ async function init() {
       }
     });
 
+    // Add search API endpoint
+    app.post('/api/search', express.json(), async (req, res) => {
+      try {
+        const { query } = req.body;
+        
+        if (!query) {
+          return res.status(400).json({ 
+            success: false, 
+            error: 'Query parameter is required' 
+          });
+        }
+        
+        logger.info(`Web search API request: "${query}"`);
+        const searchResults = await webSearchService.searchWeb(query);
+        
+        // Also display on OLED if connected
+        if (displayController.isConnected && searchResults.success) {
+          const displayText = webSearchService.formatResultsForDisplay(searchResults);
+          await displayController.sendCommand('clear');
+          await displayController.sendCommand(`multiline:${displayText.replace(/\n/g, '\\n')}`);
+        }
+        
+        return res.json(searchResults);
+      } catch (error) {
+        logger.error(`Search API error: ${error.message}`);
+        return res.status(500).json({ 
+          success: false, 
+          error: error.message 
+        });
+      }
+    });
+
     // Add a simple status endpoint
     app.get('/status', (req, res) => {
       res.json({
         status: 'running',
         displayConnected: displayController.isConnected,
-        version: '0.1.0',
+        searchEnabled: !!process.env.PERPLEXITY_API_KEY,
+        version: '0.2.0',
         timestamp: new Date().toISOString()
       });
     });

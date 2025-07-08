@@ -23,6 +23,8 @@ The application allows text, symbols, and simple graphics to be displayed on the
 - Support for scrolling text
 - Display predefined graphics (logos, icons, aiming reticle)
 - Advanced weather display with temperature and forecast symbols
+- **Web search functionality powered by Perplexity AI**
+- Omnia-like spatial browser capabilities
 - Voice command support via MentraOS transcription
 - Button press support from MentraOS smart glasses
 - Robust error handling and reconnection logic
@@ -86,6 +88,7 @@ The application allows text, symbols, and simple graphics to be displayed on the
    - Set `SERIAL_BAUD_RATE` to match the Arduino sketch (default: 9600)
    - Set `PACKAGE_NAME` to your MentraOS application package name (e.g., `com.yourdomain.displayapp`)
    - Set `MENTRAOS_API_KEY` to your MentraOS API key from the developer console
+   - Set `PERPLEXITY_API_KEY` to your Perplexity API key for web search functionality
 
 4. Register your app in the MentraOS developer console:
    - Go to [console.mentra.glass](https://console.mentra.glass/)
@@ -129,6 +132,7 @@ The application allows text, symbols, and simple graphics to be displayed on the
 
 The app supports the following voice commands:
 
+### Display Commands
 - "Show text [message]" - Display text on the OLED
 - "Show temperature" - Display temperature with degree symbol
 - "Show time" - Display current time
@@ -138,6 +142,14 @@ The app supports the following voice commands:
 - "Show directions" - Display direction arrows
 - "Clear screen" - Clear the display
 - "Help" or "Show commands" - Display list of commands
+
+### Web Search Commands (Omnia Spatial Browser-like)
+- "Search for [topic]" - Search the web for information
+- "Look up [topic]" - Search the web for information
+- "Find [topic]" - Search the web for information
+- "What is [topic]" - Get information about a topic
+- "Who is [person]" - Get information about a person
+- "Tell me about [topic]" - Get detailed information about a topic
 
 ## Button Controls
 
